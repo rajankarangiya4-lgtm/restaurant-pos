@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#172554">
+  <title>Restaurant POS</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    :root{font-family:Arial,sans-serif;color:#172033;background:#f3f5f9}
+    *{box-sizing:border-box} body{margin:0}
+    header{background:#172554;color:white;padding:18px 16px}
+    header h1{font-size:22px;margin:0 0 5px}
+    header p{margin:0;color:#dbeafe;font-size:13px}
+    nav{display:flex;gap:8px;overflow:auto;padding:10px;background:white;position:sticky;top:0;z-index:2;box-shadow:0 2px 8px #0001}
+    nav button,.btn{border:0;border-radius:9px;padding:11px 14px;background:#e5eaf4;color:#172033;font-weight:700;white-space:nowrap}
+    nav button.active,.primary{background:#1d4ed8;color:white}
+    main{max-width:850px;margin:auto;padding:15px}
+    section{display:none}section.active{display:block}
+    .card{background:white;border-radius:14px;padding:15px;margin:0 0 14px;box-shadow:0 2px 10px #1520440d}
+    h2{font-size:19px;margin:0 0 13px}
+    .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+    .stat{background:#eff6ff;padding:14px;border-radius:12px}
+    .stat strong{display:block;font-size:22px;margin-top:5px}
+    label{display:block;font-size:13px;font-weight:700;margin:10px 0 5px}
+    input,select{width:100%;padding:12px;border:1px solid #cbd5e1;border-radius:9px;font-size:16px;background:white}
+    .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .item{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #e5e7eb}
+    .item:last-child{border:0}
+    .item small{display:block;color:#64748b;margin-top:3px}
+    .qty{display:flex;align-items:center;gap:7px}
+    .qty button{border:0;border-radius:7px;padding:7px 10px;background:#e2e8f0;font-weight:bold}
+    .danger{background:#fee2e2!important;color:#991b1b!important}
+    .total{font-size:20px;font-weight:800;text-align:right;margin:12px 0}
+    .muted{color:#64748b;font-size:13px}
+    .full{width:100%;margin-top:8px}
+    .empty{text-align:center;color:#64748b;padding:20px}
+    @media(max-width:430px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:1fr 1fr}}
+    @media print{header,nav,.no-print,#dashboard,#menu,#history{display:none!important}body{background:white}main{padding:0}.card{box-shadow:none}}
+  </style>
+</head>
+<body>
+<header><h1>Restaurant POS</h1><p>Menu • Billing • Sales history</p></header>
+<nav class="no-print">
+  <button class="active" data-tab="dashboard">Dashboard</button>
+  <button data-tab="menu">Menu</button>
+  <button data-tab="billing">New Bill</button>
+  <button data-tab="history">History</button>
+</nav>
+<main>
+  <section id="dashboard" class="active">
+    <div class="card"><h2>Today's overview</h2><div class="stats">
+      <div class="stat">Today's sales<strong id="todaySales">₹0.00</strong></div>
+      <div class="stat">Bills<strong id="todayBills">0</strong></div>
+      <div class="stat">Menu items<strong id="itemCount">0</strong></div>
+      <div class="stat">All-time sales<strong id="allSales">₹0.00</strong></div>
+    </div></div>
+    <div class="card"><h2>Quick start</h2><p class="muted">Add your food and drink items in Menu, then create a bill in New Bill.</p><button class="btn primary" onclick="showTab('billing')">Create a bill</button></div>
+  </section>
+
+  <section id="menu">
+    <div class="card"><h2>Add menu item</h2>
+      <label for="itemName">Item name</label><input id="itemName" placeholder="e.g. Veg Burger">
+      <div class="grid"><div><label for="itemPrice">Price (₹)</label><input id="itemPrice" type="number" min="0" step="0.01" placeholder="100"></div>
+      <div><label for="itemCategory">Category (optional)</label><input id="itemCategory" placeholder="Snacks"></div></div>
+      <button class="btn primary full" onclick="addItem()">Add item</button>
+    </div>
+    <div class="card"><h2>Your menu</h2><div id="menuList"></div></div>
+  </section>
+
+  <section id="billing">
+    <div class="card"><h2>New bill</h2>
+      <label for="customer">Customer name (optional)</label><input id="customer" placeholder="Customer">
+      <label for="chooseItem">Select menu item</label><select id="chooseItem"></select>
+      <div class="grid"><div><label for="billQty">Quantity</label><input id="billQty" type="number" min="1" value="1"></div><div style="display:flex;align-items:end"><button class="btn primary full" onclick="addToCart()">Add to bill</button></div></div>
+    </div>
+    <div class="card"><h2>Bill items</h2><div id="cartList" class="empty">No items added yet.</div>
+      <div class="grid"><div><label for="discount">Discount (₹)</label><input id="discount" type="number" min="0" value="0" oninput="renderCart()"></div>
+      <div><label for="gst">GST (%)</label><input id="gst" type="number" min="0" value="0" oninput="renderCart()"></div></div>
+      <div id="billTotals"></div>
+      <button class="btn primary full" onclick="saveBill()">Save bill</button>
+      <button class="btn full" onclick="printBill()">Print current bill</button>
+    </div>
+  </section>
+
+  <section id="history">
+    <div class="card"><h2>Sales history</h2><div id="historyList"></div></div>
+  </section>
+</main>
+<script>
+const read=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
+let menu=read('rpos_menu',[]), cart=[], bills=read('rpos_bills',[]);
+const money=n=>'₹'+Number(n||0).toFixed(2);
+const save=()=>{localStorage.setItem('rpos_menu',JSON.stringify(menu));localStorage.setItem('rpos_bills',JSON.stringify(bills));};
+function showTab(id){document.querySelectorAll('main section').forEach(s=>s.classList.toggle('active',s.id===id));document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('active',b.dataset.tab===id));if(id==='billing')renderSelect();if(id==='history')renderHistory();if(id==='dashboard')renderDashboard();}
+document.querySelectorAll('nav button').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
+function addItem(){let name=document.getElementById('itemName').value.trim(),price=Number(document.getElementById('itemPrice').value),category=document.getElementById('itemCategory').value.trim();if(!name||!Number.isFinite(price)||price<0){alert('Enter a valid item name and price.');return;}menu.push({id:Date.now()+Math.random(),name,price,category});save();document.getElementById('itemName').value='';document.getElementById('itemPrice').value='';document.getElementById('itemCategory').value='';renderMenu();renderSelect();renderDashboard();}
+function deleteItem(id){if(confirm('Delete this menu item?')){menu=menu.filter(x=>x.id!==id);save();renderMenu();renderSelect();renderDashboard();}}
+function renderMenu(){let el=document.getElementById('menuList');el.innerHTML=menu.length?'':'<div class="empty">No menu items yet. Add your first item above.</div>';menu.forEach(x=>{el.insertAdjacentHTML('beforeend',`<div class="item"><div><b>${esc(x.name)}</b><small>${esc(x.category||'')}</small></div><div><b>${money(x.price)}</b> <button class="btn danger" onclick="deleteItem(${x.id})">Delete</button></div></div>`)});}
+function renderSelect(){let s=document.getElementById('chooseItem');s.innerHTML=menu.length?'':'<option value="">Add menu items first</option>';menu.forEach(x=>s.insertAdjacentHTML('beforeend',`<option value="${x.id}">${esc(x.name)} — ${money(x.price)}</option>`));}
+function addToCart(){let id=Number(document.getElementById('chooseItem').value),q=Math.floor(Number(document.getElementById('billQty').value));let x=menu.find(a=>a.id===id);if(!x||q<1){alert('Select an item and enter a valid quantity.');return;}let found=cart.find(a=>a.id===id);if(found)found.qty+=q;else cart.push({...x,qty:q});document.getElementById('billQty').value=1;renderCart();}
+function totals(){let subtotal=cart.reduce((s,x)=>s+x.price*x.qty,0),discount=Math.max(0,Number(document.getElementById('discount').value)||0),gstRate=Math.max(0,Number(document.getElementById('gst').value)||0),taxable=Math.max(0,subtotal-discount),tax=taxable*gstRate/100;return {subtotal,discount,tax,total:taxable+tax};}
+function changeQty(id,delta){let x=cart.find(a=>a.id===id);if(x){x.qty+=delta;if(x.qty<1)cart=cart.filter(a=>a.id!==id);}renderCart();}
+function renderCart(){let el=document.getElementById('cartList');el.innerHTML=cart.length?'':'<div class="empty">No items added yet.</div>';cart.forEach(x=>el.insertAdjacentHTML('beforeend',`<div class="item"><div><b>${esc(x.name)}</b><small>${money(x.price)} each</small></div><div class="qty"><button onclick="changeQty(${x.id},-1)">−</button>${x.qty}<button onclick="changeQty(${x.id},1)">+</button><b>${money(x.price*x.qty)}</b></div></div>`));let t=totals();document.getElementById('billTotals').innerHTML=`<p>Subtotal: <b>${money(t.subtotal)}</b></p><p>Discount: <b>${money(t.discount)}</b></p><p>GST: <b>${money(t.tax)}</b></p><div class="total">Total: ${money(t.total)}</div>`;}
+function saveBill(){if(!cart.length){alert('Add at least one item.');return;}let t=totals();let bill={id:Date.now(),date:new Date().toISOString(),customer:document.getElementById('customer').value.trim(),items:cart.map(x=>({...x})),...t};bills.unshift(bill);save();alert('Bill saved.');cart=[];document.getElementById('customer').value='';document.getElementById('discount').value=0;document.getElementById('gst').value=0;renderCart();renderHistory();renderDashboard();}
+function printBill(){if(!cart.length){alert('Add items before printing.');return;}let t=totals(),w=window.open('','_blank');if(!w){alert('Allow pop-ups to print the bill.');return;}w.document.write(`<html><head><title>Receipt</title><style>body{font-family:Arial;padding:20px}table{width:100%;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid #ddd;text-align:left}.r{text-align:right}</style></head><body><h2>Restaurant Bill</h2><p>${new Date().toLocaleString()}</p><p>Customer: ${esc(document.getElementById('customer').value||'Walk-in')}</p><table><tr><th>Item</th><th>Qty</th><th class="r">Amount</th></tr>${cart.map(x=>`<tr><td>${esc(x.name)}</td><td>${x.qty}</td><td class="r">${money(x.price*x.qty)}</td></tr>`).join('')}</table><p>Subtotal: ${money(t.subtotal)}</p><p>Discount: ${money(t.discount)}</p><p>GST: ${money(t.tax)}</p><h2 class="r">Total: ${money(t.total)}</h2></body></html>`);w.document.close();w.print();}
+function renderHistory(){let el=document.getElementById('historyList');el.innerHTML=bills.length?'':'<div class="empty">No saved bills yet.</div>';bills.forEach(b=>el.insertAdjacentHTML('beforeend',`<div class="item"><div><b>${esc(b.customer||'Walk-in customer')}</b><small>${new Date(b.date).toLocaleString()} · ${b.items.length} item types</small></div><b>${money(b.total)}</b></div>`));}
+function renderDashboard(){let today=new Date().toDateString(),todays=bills.filter(b=>new Date(b.date).toDateString()===today);document.getElementById('todaySales').textContent=money(todays.reduce((s,b)=>s+b.total,0));document.getElementById('todayBills').textContent=todays.length;document.getElementById('itemCount').textContent=menu.length;document.getElementById('allSales').textContent=money(bills.reduce((s,b)=>s+b.total,0));}
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+renderMenu();renderSelect();renderCart();renderHistory();renderDashboard();
+if('serviceWorker' in navigator && location.protocol.startsWith('http'))window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(()=>{}));
+</script>
+</body></html>
